@@ -1,0 +1,47 @@
+# Screen dimensions
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 800
+FPS = 60
+
+# Grid dimensions
+BLOCK_SIZE = 30
+GRID_WIDTH = 10
+GRID_HEIGHT = 20
+
+# Calculated dimensions
+GAME_WIDTH = GRID_WIDTH * BLOCK_SIZE
+GAME_HEIGHT = GRID_HEIGHT * BLOCK_SIZE
+
+# Offsets to center the grid
+TOP_LEFT_X = (SCREEN_WIDTH - GAME_WIDTH) // 2
+TOP_LEFT_Y = (SCREEN_HEIGHT - GAME_HEIGHT) // 2
+
+# Colors (R, G, B)
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+GRAY = (128, 128, 128)
+DARK_GRAY = (50, 50, 50)
+
+# Tetromino Colors
+CYAN = (0, 255, 255)    # I
+BLUE = (0, 0, 255)      # J
+ORANGE = (255, 165, 0)  # L
+YELLOW = (255, 255, 0)  # O
+GREEN = (0, 255, 0)     # S
+PURPLE = (128, 0, 128)  # T
+RED = (255, 0, 0)       # Z
+
+COLORS = [CYAN, BLUE, ORANGE, YELLOW, GREEN, PURPLE, RED]
+
+# UI Settings
+FONT_NAME = 'arial'
+FONT_SIZE = 30
+UI_START_X = TOP_LEFT_X + GAME_WIDTH + 50
+UI_START_Y = TOP_LEFT_Y
+
+# Scoring
+SCORE_TABLE = {0: 0, 1: 40, 2: 100, 3: 300, 4: 1200}
+
+# Input
+KEY_REPEAT_DELAY = 200
+KEY_REPEAT_INTERVAL = 50
