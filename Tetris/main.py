@@ -32,6 +32,9 @@ def main():
                     game.rotate()
                 elif event.key == pygame.K_p:
                     game.toggle_pause()
+                elif event.key == pygame.K_r:
+                    if game.game_over:
+                        game.reset_game()
 
         # Update
         game.update()

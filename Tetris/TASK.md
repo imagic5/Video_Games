@@ -30,9 +30,9 @@
 ## Phase 6: UI & Polish
 - [x] **Graphics**: Render the grid and pieces with distinct colors.
 - [x] **UI Overlay**: Display Score, Level, and Next Piece.
-- [ ] **Audio**: Add background music and sound effects (optional placeholders first).
+- [x] **Audio**: Add background music and sound effects (optional placeholders first).
 - [ ] **Ghost Piece**: (Optional) Visual indicator of where the piece will land.
 
 ## Phase 7: Final Review
-- [ ] **Testing**: Playtest for bugs (stuck pieces, incorrect line clears).
-- [ ] **Refinement**: Tweak speeds and controls for "feel".
+- [x] **Testing**: Playtest for bugs (stuck pieces, incorrect line clears).
+- [x] **Refinement**: Tweak speeds and controls for "feel".
