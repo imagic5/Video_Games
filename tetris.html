@@ -105,6 +105,12 @@
     margin-bottom: 8px;
     letter-spacing: 12px;
   }
+  #title-screen .byline {
+    font-size: 14px;
+    color: #ccc;
+    margin-bottom: 6px;
+    letter-spacing: 4px;
+  }
   #title-screen .subtitle {
     color: #666;
     font-size: 14px;
@@ -183,6 +189,7 @@
 <!-- Title Screen -->
 <div id="title-screen">
   <h1>TETRIS</h1>
+  <div class="byline">By Ian Rosner</div>
   <div class="subtitle">SELECT DIFFICULTY</div>
   <div class="mode-select">
     <button class="mode-btn" data-mode="easy">
@@ -541,7 +548,15 @@ function detectClears() {
     if (board[r].every(c => c !== null)) full.push(r);
   }
   if (full.length) {
-    clearingRows = full;
+    // record which rows were full, then remove them immediately
+    // so blocks above drop into place; animate on the cleared row
+    clearingRows = full.slice();
+    // remove rows now (from bottom up) so board updates visually
+    full.sort((a, b) => b - a);
+    for (const r of full) {
+      board.splice(r, 1);
+      board.unshift(Array(COLS).fill(null));
+    }
     clearAnimTime = CLEAR_ANIM_MS;
     isClearing = true;
     sfxClear(full.length);
@@ -552,11 +567,6 @@ function detectClears() {
 
 function finishClear() {
   const cleared = clearingRows.length;
-  clearingRows.sort((a, b) => b - a);
-  for (const r of clearingRows) {
-    board.splice(r, 1);
-    board.unshift(Array(COLS).fill(null));
-  }
   const pts = [0, 100, 300, 500, 800];
   const oldLevel = level;
   score += (pts[cleared] || 800) * level;
@@ -667,6 +677,9 @@ function drawClearAnim() {
   const progress = 1 - (clearAnimTime / CLEAR_ANIM_MS);
   const flash = Math.sin(progress * Math.PI * 8) > 0;
   for (const r of clearingRows) {
+    // clear the row area so it appears empty while animating
+    mainCtx.fillStyle = '#0f0f1a';
+    mainCtx.fillRect(0, r * BLOCK, COLS * BLOCK, BLOCK);
     for (let c = 0; c < COLS; c++) {
       mainCtx.fillStyle = flash ? '#fff' : '#0ff';
       mainCtx.globalAlpha = flash ? 0.9 : 0.4;
