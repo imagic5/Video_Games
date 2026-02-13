@@ -206,6 +206,303 @@ const AudioSystem = {
 document.addEventListener('click', () => AudioSystem.init(), { once: true });
 document.addEventListener('keydown', () => AudioSystem.init(), { once: true });
 
+// 1980s Retro Synthwave/Dystopian Sci-Fi Music System
+const MusicSystem = {
+    context: null,
+    masterGain: null,
+    isPlaying: false,
+    bpm: 110,
+    currentBeat: 0,
+    scheduledTime: 0,
+    timerID: null,
+    oscillators: [],
+    
+    // D minor scale - dark and dystopian
+    scale: [146.83, 164.81, 174.61, 196.00, 220.00, 233.08, 261.63, 293.66], // D3 to D4
+    bassNotes: [73.42, 82.41, 87.31, 98.00], // D2, E2, F2, G2
+    
+    // Patterns (16 steps each)
+    bassPattern: [1,0,0,1, 0,0,1,0, 1,0,0,1, 0,1,0,0],
+    kickPattern: [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0],
+    snarePattern: [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0],
+    hihatPattern: [1,0,1,0, 1,0,1,0, 1,0,1,0, 1,0,1,1],
+    arpPattern: [0,1,0,1, 0,1,0,0, 0,1,0,1, 0,0,1,0],
+    
+    init() {
+        if (this.context) return;
+        try {
+            this.context = new (window.AudioContext || window.webkitAudioContext)();
+            this.masterGain = this.context.createGain();
+            this.masterGain.gain.value = 0.3;
+            this.masterGain.connect(this.context.destination);
+        } catch (e) {
+            console.log('Music system unavailable');
+        }
+    },
+    
+    start() {
+        if (!this.context || this.isPlaying || musicMuted) return;
+        if (this.context.state === 'suspended') {
+            this.context.resume();
+        }
+        this.isPlaying = true;
+        this.currentBeat = 0;
+        this.scheduledTime = this.context.currentTime;
+        this.scheduleNotes();
+    },
+    
+    stop() {
+        this.isPlaying = false;
+        if (this.timerID) {
+            clearTimeout(this.timerID);
+            this.timerID = null;
+        }
+        // Stop all oscillators
+        this.oscillators.forEach(osc => {
+            try { osc.stop(); } catch(e) {}
+        });
+        this.oscillators = [];
+    },
+    
+    scheduleNotes() {
+        if (!this.isPlaying) return;
+        
+        const beatDuration = 60 / this.bpm / 4; // 16th notes
+        const lookAhead = 0.1;
+        const scheduleAhead = 0.2;
+        
+        while (this.scheduledTime < this.context.currentTime + scheduleAhead) {
+            const step = this.currentBeat % 16;
+            const bar = Math.floor(this.currentBeat / 16) % 4;
+            
+            // Bass synth - deep and ominous
+            if (this.bassPattern[step]) {
+                this.playBass(this.scheduledTime, this.bassNotes[bar % 4], beatDuration * 2);
+            }
+            
+            // Kick drum
+            if (this.kickPattern[step]) {
+                this.playKick(this.scheduledTime);
+            }
+            
+            // Snare
+            if (this.snarePattern[step]) {
+                this.playSnare(this.scheduledTime);
+            }
+            
+            // Hi-hat
+            if (this.hihatPattern[step]) {
+                this.playHihat(this.scheduledTime, step % 4 === 3 ? 0.08 : 0.05);
+            }
+            
+            // Arpeggio - synthwave style
+            if (this.arpPattern[step]) {
+                const noteIndex = (step + bar * 2) % this.scale.length;
+                this.playArp(this.scheduledTime, this.scale[noteIndex], beatDuration * 1.5);
+            }
+            
+            // Atmospheric pad (every 16 beats)
+            if (step === 0) {
+                this.playPad(this.scheduledTime, this.bassNotes[bar % 4] * 2, beatDuration * 16);
+            }
+            
+            this.scheduledTime += beatDuration;
+            this.currentBeat++;
+        }
+        
+        this.timerID = setTimeout(() => this.scheduleNotes(), lookAhead * 1000);
+    },
+    
+    playBass(time, freq, duration) {
+        const osc = this.context.createOscillator();
+        const gain = this.context.createGain();
+        const filter = this.context.createBiquadFilter();
+        
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(freq, time);
+        
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(200, time);
+        filter.frequency.exponentialRampToValueAtTime(800, time + 0.05);
+        filter.frequency.exponentialRampToValueAtTime(150, time + duration);
+        filter.Q.value = 8;
+        
+        gain.gain.setValueAtTime(0, time);
+        gain.gain.linearRampToValueAtTime(0.25, time + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.01, time + duration);
+        
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.masterGain);
+        
+        osc.start(time);
+        osc.stop(time + duration);
+        this.oscillators.push(osc);
+    },
+    
+    playKick(time) {
+        const osc = this.context.createOscillator();
+        const gain = this.context.createGain();
+        
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(150, time);
+        osc.frequency.exponentialRampToValueAtTime(30, time + 0.15);
+        
+        gain.gain.setValueAtTime(0.4, time);
+        gain.gain.exponentialRampToValueAtTime(0.01, time + 0.15);
+        
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+        
+        osc.start(time);
+        osc.stop(time + 0.15);
+        this.oscillators.push(osc);
+    },
+    
+    playSnare(time) {
+        // Noise burst for snare
+        const bufferSize = this.context.sampleRate * 0.1;
+        const buffer = this.context.createBuffer(1, bufferSize, this.context.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.2));
+        }
+        
+        const noise = this.context.createBufferSource();
+        noise.buffer = buffer;
+        
+        const filter = this.context.createBiquadFilter();
+        filter.type = 'highpass';
+        filter.frequency.value = 1000;
+        
+        const gain = this.context.createGain();
+        gain.gain.setValueAtTime(0.2, time);
+        gain.gain.exponentialRampToValueAtTime(0.01, time + 0.1);
+        
+        // Add body tone
+        const osc = this.context.createOscillator();
+        const oscGain = this.context.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(200, time);
+        osc.frequency.exponentialRampToValueAtTime(80, time + 0.05);
+        oscGain.gain.setValueAtTime(0.15, time);
+        oscGain.gain.exponentialRampToValueAtTime(0.01, time + 0.08);
+        
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.masterGain);
+        
+        osc.connect(oscGain);
+        oscGain.connect(this.masterGain);
+        
+        noise.start(time);
+        osc.start(time);
+        osc.stop(time + 0.1);
+        this.oscillators.push(osc);
+    },
+    
+    playHihat(time, volume) {
+        const bufferSize = this.context.sampleRate * 0.05;
+        const buffer = this.context.createBuffer(1, bufferSize, this.context.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.1));
+        }
+        
+        const noise = this.context.createBufferSource();
+        noise.buffer = buffer;
+        
+        const filter = this.context.createBiquadFilter();
+        filter.type = 'highpass';
+        filter.frequency.value = 7000;
+        
+        const gain = this.context.createGain();
+        gain.gain.setValueAtTime(volume, time);
+        gain.gain.exponentialRampToValueAtTime(0.01, time + 0.05);
+        
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.masterGain);
+        
+        noise.start(time);
+    },
+    
+    playArp(time, freq, duration) {
+        const osc = this.context.createOscillator();
+        const osc2 = this.context.createOscillator();
+        const gain = this.context.createGain();
+        const filter = this.context.createBiquadFilter();
+        
+        // Detuned saw waves for that 80s synth sound
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(freq, time);
+        osc2.type = 'sawtooth';
+        osc2.frequency.setValueAtTime(freq * 1.005, time); // Slight detune
+        
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(2000, time);
+        filter.frequency.exponentialRampToValueAtTime(500, time + duration);
+        filter.Q.value = 2;
+        
+        gain.gain.setValueAtTime(0, time);
+        gain.gain.linearRampToValueAtTime(0.08, time + 0.01);
+        gain.gain.setValueAtTime(0.08, time + duration * 0.7);
+        gain.gain.exponentialRampToValueAtTime(0.01, time + duration);
+        
+        osc.connect(filter);
+        osc2.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.masterGain);
+        
+        osc.start(time);
+        osc2.start(time);
+        osc.stop(time + duration);
+        osc2.stop(time + duration);
+        this.oscillators.push(osc, osc2);
+    },
+    
+    playPad(time, freq, duration) {
+        // Atmospheric pad with multiple detuned oscillators
+        const oscs = [];
+        const detunes = [-15, -5, 0, 5, 15];
+        const gain = this.context.createGain();
+        const filter = this.context.createBiquadFilter();
+        
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(400, time);
+        filter.frequency.linearRampToValueAtTime(800, time + duration * 0.5);
+        filter.frequency.linearRampToValueAtTime(300, time + duration);
+        filter.Q.value = 1;
+        
+        gain.gain.setValueAtTime(0, time);
+        gain.gain.linearRampToValueAtTime(0.06, time + duration * 0.3);
+        gain.gain.setValueAtTime(0.06, time + duration * 0.7);
+        gain.gain.linearRampToValueAtTime(0, time + duration);
+        
+        detunes.forEach(detune => {
+            const osc = this.context.createOscillator();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(freq, time);
+            osc.detune.setValueAtTime(detune, time);
+            osc.connect(filter);
+            osc.start(time);
+            osc.stop(time + duration);
+            oscs.push(osc);
+        });
+        
+        filter.connect(gain);
+        gain.connect(this.masterGain);
+        
+        this.oscillators.push(...oscs);
+    },
+    
+    setVolume(vol) {
+        if (this.masterGain) {
+            this.masterGain.gain.value = Math.max(0, Math.min(1, vol));
+        }
+    }
+};
+
 // Weapon system
 const Weapons = {
     PISTOL: 0,
@@ -214,6 +511,7 @@ const Weapons = {
 
 let currentWeapon = Weapons.PISTOL;
 let shotgunAmmo = 0;
+let musicMuted = false;
 
 // Story text for intro
 const storyPages = [
@@ -2459,7 +2757,7 @@ function drawHUD(ctx) {
     // Draw weapon indicator
     ctx.fillStyle = '#fff';
     ctx.font = '12px monospace';
-    ctx.fillText('[Z] Shotgun  [X/CTRL] Pistol  [ESC] Pause', 10, 110);
+    ctx.fillText('[Z] Shotgun  [X/CTRL] Pistol  [ESC] Pause  [M] Music: ' + (musicMuted ? 'OFF' : 'ON'), 10, 110);
     
     // Boss health bar at top of screen
     if (level.boss && level.boss.active) {
@@ -2649,11 +2947,13 @@ function update() {
     // Check game over
     if (player.health <= 0) {
         gameState = GameState.GAME_OVER;
+        MusicSystem.stop();
     }
     
     // Check stage complete (boss defeated!)
     if (level.boss && !level.boss.active) {
         gameState = GameState.STAGE_COMPLETE;
+        MusicSystem.stop();
         score += 2000; // Boss bonus!
     }
 }
@@ -2792,11 +3092,24 @@ document.addEventListener('keydown', (e) => {
         currentWeapon = currentWeapon === Weapons.PISTOL ? Weapons.SHOTGUN : Weapons.PISTOL;
     }
     
+    // Music toggle
+    if (e.code === 'KeyM') {
+        musicMuted = !musicMuted;
+        if (musicMuted) {
+            MusicSystem.stop();
+        } else if (gameState === GameState.PLAYING) {
+            MusicSystem.init();
+            MusicSystem.start();
+        }
+    }
+    
     // Pause
     if (e.code === 'Escape' && gameState === GameState.PLAYING) {
         gameState = GameState.PAUSED;
+        MusicSystem.stop();
     } else if (e.code === 'Escape' && gameState === GameState.PAUSED) {
         gameState = GameState.PLAYING;
+        MusicSystem.start();
     }
     
     // Enter key for state transitions
@@ -2820,10 +3133,13 @@ document.addEventListener('keydown', (e) => {
                     currentWeapon = Weapons.PISTOL;
                     score = 0;
                     cameraX = 0;
+                    MusicSystem.init();
+                    MusicSystem.start();
                 }
                 break;
             case GameState.PAUSED:
                 gameState = GameState.PLAYING;
+                MusicSystem.start();
                 break;
             case GameState.GAME_OVER:
                 gameState = GameState.PLAYING;
@@ -2837,6 +3153,8 @@ document.addEventListener('keydown', (e) => {
                 currentWeapon = Weapons.PISTOL;
                 score = 0;
                 cameraX = 0;
+                MusicSystem.init();
+                MusicSystem.start();
                 break;
         }
     }
