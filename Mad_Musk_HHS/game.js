@@ -958,10 +958,21 @@ class Enemy {
         
         switch(this.type) {
             case 'robot':
-                // Patrol back and forth
-                this.x += this.speed * this.direction;
-                if (this.x > this.startX + this.patrolRange) this.direction = -1;
-                if (this.x < this.startX - this.patrolRange) this.direction = 1;
+                // Patrol back and forth with collision detection
+                const robotNewX = this.x + this.speed * this.direction;
+                let robotBlocked = false;
+                for (let platform of platforms) {
+                    if (this.wouldCollide(robotNewX, this.y, platform)) {
+                        robotBlocked = true;
+                        this.direction *= -1; // Turn around when hitting wall
+                        break;
+                    }
+                }
+                if (!robotBlocked) {
+                    this.x = robotNewX;
+                    if (this.x > this.startX + this.patrolRange) this.direction = -1;
+                    if (this.x < this.startX - this.patrolRange) this.direction = 1;
+                }
                 break;
                 
             case 'drone':
@@ -2829,6 +2840,24 @@ function update() {
     for (let bullet of bullets) {
         bullet.update();
         
+        // Check wall/building collisions (bullets dissolve on impact)
+        if (!bullet.penetrating) { // Future upgrade: penetrating bullets ignore walls
+            for (let platform of level.platforms) {
+                if (platform.type === 'building' || platform.type === 'debris') {
+                    if (bullet.x < platform.x + platform.width &&
+                        bullet.x + bullet.width > platform.x &&
+                        bullet.y < platform.y + platform.height &&
+                        bullet.y + bullet.height > platform.y) {
+                        bullet.active = false;
+                        spawnParticles(bullet.x, bullet.y, 4, ['#888', '#666', '#ff0']);
+                        break;
+                    }
+                }
+            }
+        }
+        
+        if (!bullet.active) continue; // Skip if bullet hit a wall
+        
         // Check enemy collisions
         for (let enemy of level.enemies) {
             if (enemy.active && bullet.collidesWith(enemy)) {
@@ -2866,12 +2895,49 @@ function update() {
     for (let bullet of enemyBullets) {
         bullet.update();
         
+        // Check wall/building collisions (enemy bullets also dissolve on walls)
+        for (let platform of level.platforms) {
+            if (platform.type === 'building' || platform.type === 'debris') {
+                if (bullet.x < platform.x + platform.width &&
+                    bullet.x + bullet.width > platform.x &&
+                    bullet.y < platform.y + platform.height &&
+                    bullet.y + bullet.height > platform.y) {
+                    bullet.active = false;
+                    spawnParticles(bullet.x, bullet.y, 3, ['#f80', '#800']);
+                    break;
+                }
+            }
+        }
+        
+        if (!bullet.active) continue; // Skip if bullet hit a wall
+        
+        // Check player collision
         if (bullet.collidesWith(player)) {
             player.takeDamage(8);
             bullet.active = false;
             AudioSystem.play('hurt');
             screenShake.trigger(3, 5);
             spawnParticles(player.x + player.width/2, player.y + player.height/2, 8, ['#f00', '#800']);
+        }
+        
+        if (!bullet.active) continue;
+        
+        // Friendly fire - enemy bullets can hit other enemies
+        for (let enemy of level.enemies) {
+            if (enemy.active && bullet.collidesWith(enemy)) {
+                enemy.health -= 5; // Less damage from friendly fire
+                bullet.active = false;
+                spawnParticles(bullet.x, bullet.y, 4, ['#f80', '#ff0']);
+                
+                if (enemy.health <= 0) {
+                    enemy.active = false;
+                    score += Math.floor(enemy.points / 2); // Half points for friendly fire kills
+                    explosions.push(new Explosion(enemy.x + enemy.width/2, enemy.y + enemy.height/2));
+                    spawnParticles(enemy.x + enemy.width/2, enemy.y + enemy.height/2, 12, ['#f00', '#f80', '#ff0']);
+                    AudioSystem.play('explosion');
+                }
+                break;
+            }
         }
         
         if (bullet.x < cameraX - 50 || bullet.x > cameraX + GAME_WIDTH + 50 ||
